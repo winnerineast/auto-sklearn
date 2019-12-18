@@ -11,6 +11,77 @@
 Releases
 ========
 
+Version 0.6.0
+=============
+
+* MAINT: move from scikit-learn 0.19.X to 0.21.X
+* MAINT #688: allow for pyrfr version 0.8.X
+* FIX #680: Remove unnecessary print statement
+* FIX #600: Remove unnecessary warning
+
+Contributors
+************
+
+* Guilherme Miotto
+* Matthias Feurer
+* Jin Woo Ahn
+
+Version 0.5.2
+=============
+
+* FIX #669: Correctly handle arguments to the ``AutoMLRegressor``
+* FIX #667: Auto-sklearn works with numpy 1.16.3 again.
+* ADD #676: Allow brackets [ ] inside the temporary and output directory paths.
+* ADD #424: (Experimental) scripts to reproduce the results from the original Auto-sklearn paper.
+
+Contributors
+************
+
+* Jin Woo Ahn
+* Herilalaina Rakotoarison
+* Matthias Feurer
+* yazanobeidi
+
+Version 0.5.1
+=============
+
+* ADD #650: Auto-sklearn will immediately stop if prediction using scikit-learn's dummy predictor
+  fail.
+* ADD #537: Auto-sklearn will no longer start for time limits less than 30 seconds.
+* FIX #655: Fixes an issue where predictions using models from parallel Auto-sklearn runs could
+  be wrong.
+* FIX #648: Fixes an issue with custom meta-data directories.
+* FIX #626: Fixes an issue where losses were not minimized, but maximized.
+* MAINT #646: Do no longer restrict the numpy version to be less than 1.14.5.
+
+Contributors
+************
+
+* Jin Woo Ahn
+* Taneli Mielikäinen
+* Matthias Feurer
+* jianswang
+
+Version 0.5.0
+=============
+
+* ADD #593: Auto-sklearn supports the ``n_jobs`` argument for parallel
+  computing on a single machine.
+* DOC #618: Added links to several system requirements.
+* Fixes #611: Improved installation from pip.
+* TEST #614: Test installation with clean Ubuntu on travis-ci.
+* MAINT: Fixed broken link and typo in the documentation.
+
+Contributors
+************
+
+* Mohd Shahril
+* Adrian
+* Matthias Feurer
+* Jirka Borovec
+* Pradeep Reddy Raamana
+
+
 Version 0.4.2
 =============
 

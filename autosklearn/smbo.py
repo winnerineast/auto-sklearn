@@ -13,10 +13,13 @@ from smac.runhistory.runhistory import RunHistory
 from smac.runhistory.runhistory2epm import RunHistory2EPM4Cost
 from smac.scenario.scenario import Scenario
 from smac.tae.execute_ta_run import StatusType
+from smac.optimizer import pSMAC
 
 
 import autosklearn.metalearning
-from autosklearn.constants import *
+from autosklearn.constants import MULTILABEL_CLASSIFICATION, \
+    BINARY_CLASSIFICATION, TASK_TYPES_TO_STRING, CLASSIFICATION_TASKS, \
+    REGRESSION_TASKS, MULTICLASS_CLASSIFICATION, REGRESSION
 from autosklearn.metalearning.mismbo import suggest_via_metalearning
 from autosklearn.data.abstract_data_manager import AbstractDataManager
 from autosklearn.data.competition_data_manager import CompetitionDataManager
@@ -168,9 +171,10 @@ def get_smac_object(
     backend,
     metalearning_configurations,
     runhistory,
-    run_id,
 ):
-    scenario_dict['input_psmac_dirs'] = backend.get_smac_output_glob()
+    scenario_dict['input_psmac_dirs'] = backend.get_smac_output_glob(
+        smac_run_id=seed if not scenario_dict['shared-model'] else '*',
+    )
     scenario = Scenario(scenario_dict)
     if len(metalearning_configurations) > 0:
         default_config = scenario.cs.get_default_configuration()
@@ -197,7 +201,7 @@ def get_smac_object(
         tae_runner=ta,
         initial_configurations=initial_configurations,
         runhistory=runhistory,
-        run_id=run_id,
+        run_id=seed,
     )
 
 
@@ -370,7 +374,7 @@ class AutoMLSMBO(object):
 
         # == first things first: load the datamanager
         self.reset_data_manager()
-        
+
         # == Initialize non-SMBO stuff
         # first create a scenario
         seed = self.seed
@@ -491,7 +495,6 @@ class AutoMLSMBO(object):
             'backend': self.backend,
             'metalearning_configurations': metalearning_configurations,
             'runhistory': runhistory,
-            'run_id': seed,
         }
         if self.get_smac_object_callback is not None:
             smac = self.get_smac_object_callback(**smac_args)
@@ -500,17 +503,27 @@ class AutoMLSMBO(object):
 
         smac.optimize()
 
+        # Patch SMAC to read in data from parallel runs after the last
+        # function evaluation
+        if self.shared_mode:
+            pSMAC.read(
+                run_history=smac.solver.runhistory,
+                output_dirs=smac.solver.scenario.input_psmac_dirs,
+                configuration_space=smac.solver.config_space,
+                logger=smac.solver.logger,
+            )
+
         self.runhistory = smac.solver.runhistory
         self.trajectory = smac.solver.intensifier.traj_logger.trajectory
 
         return self.runhistory, self.trajectory
-
 
     def get_metalearning_suggestions(self):
         # == METALEARNING suggestions
         # we start by evaluating the defaults on the full dataset again
         # and add the suggestions from metalearning behind it
         if self.num_metalearning_cfgs > 0:
+            # If metadata directory is None, use default
             if self.metadata_directory is None:
                 metalearning_directory = os.path.dirname(
                     autosklearn.metalearning.__file__)
@@ -526,16 +539,42 @@ class AutoMLSMBO(object):
                                   else 'dense'))
                 self.metadata_directory = metadata_directory
 
+            # If metadata directory is specified by user,
+            # then verify that it exists.
+            else:
+                if not os.path.exists(self.metadata_directory):
+                    raise ValueError('The specified metadata directory \'%s\' '
+                                     'does not exist!' % self.metadata_directory)
+
+                else:
+                    # There is no multilabel data in OpenML
+                    if self.task == MULTILABEL_CLASSIFICATION:
+                        meta_task = BINARY_CLASSIFICATION
+                    else:
+                        meta_task = self.task
+
+                    metadata_directory = os.path.join(
+                        self.metadata_directory,
+                        '%s_%s_%s' % (self.metric, TASK_TYPES_TO_STRING[meta_task],
+                                      'sparse' if self.datamanager.info['is_sparse']
+                                      else 'dense'))
+                    # Check that the metadata directory has the correct
+                    # subdirectory needed for this dataset.
+                    if os.path.basename(metadata_directory) not in \
+                            os.listdir(self.metadata_directory):
+                        raise ValueError('The specified metadata directory '
+                                         '\'%s\' does not have the correct '
+                                         'subdirectory \'%s\'' %
+                                         (self.metadata_directory,
+                                          os.path.basename(metadata_directory))
+                                         )
+                self.metadata_directory = metadata_directory
+
             if os.path.exists(self.metadata_directory):
 
                 self.logger.info('Metadata directory: %s',
                                  self.metadata_directory)
                 meta_base = MetaBase(self.config_space, self.metadata_directory)
-
-                try:
-                    meta_base.remove_dataset(self.dataset_name)
-                except:
-                    pass
 
                 metafeature_calculation_time_limit = int(
                     self.total_walltime_limit / 4)
